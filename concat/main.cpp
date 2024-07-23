@@ -96,7 +96,7 @@ int main()
         }
     }
 
-    constexpr uint32_t trials = 10;
+    constexpr uint32_t trials = 1;
     constexpr uint32_t dispatches = 10;
 
     // Tests 2D convolution 1x1x128x12288 -> 1x1x128x1536
@@ -157,7 +157,7 @@ int main()
     ThrowIfFailed(device->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
 
     std::vector<char> csBytes;
-    std::array<const char*, 3> possiblePaths = { "conv1x1.cso", "..\\x64\\Debug\\conv1x1.cso", "..\\x64\\Release\\conv1x1.cso" };
+    std::array<const char*, 3> possiblePaths = { "concat.cso", "..\\x64\\Debug\\concat.cso", "..\\x64\\Release\\concat.cso" };
     for (const char* path : possiblePaths) {
         std::ifstream csFile(path, std::fstream::binary);
         if (csFile.fail()) {
@@ -169,7 +169,7 @@ int main()
     }
 
     if (csBytes.empty()) {
-        std::cout << "Failed to open conv1x1.cso!" << std::endl;
+        std::cout << "Failed to open concat.cso!" << std::endl;
         return -1;
     }
 
