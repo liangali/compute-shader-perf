@@ -70,8 +70,18 @@ void PrintAdapterInfo(IDXGIAdapter1* adapter) {
     printf("\n");
 }
 
-int main()
+int main(int argc, char** argv)
 {
+    uint32_t elemNumInMillion = 1;
+    if (argc == 2)
+        elemNumInMillion = atoi(argv[1]);
+
+    uint32_t trials = 100;
+    uint32_t dispatches = 10;
+    uint32_t elemCount = elemNumInMillion * 1024 * 1024;
+    uint32_t bufSizeInByte = elemCount * sizeof(uint32_t);
+    uint32_t threadGroupSizeX = 256;
+
     ComPtr<IDXGIFactory4> factory;
     ThrowIfFailed(CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
 
@@ -95,12 +105,6 @@ int main()
             break;
         }
     }
-
-    constexpr uint32_t trials = 100;
-    constexpr uint32_t dispatches = 10;
-
-    constexpr uint32_t elemCount = 32*250*250;
-    constexpr uint32_t bufSizeInByte = elemCount * sizeof(uint32_t);
 
     D3D12_DESCRIPTOR_RANGE1 rootDescriptorRanges[3] = {};
     {
@@ -317,7 +321,7 @@ int main()
 
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2);
         for (uint32_t d = 0; d < dispatches; ++d) {
-            commandList->Dispatch(elemCount/256, 1, 1);
+            commandList->Dispatch(elemCount/threadGroupSizeX, 1, 1);
             commandList->ResourceBarrier(1, &barrierDesc);
         }
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2 + 1);
