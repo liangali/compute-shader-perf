@@ -7,7 +7,6 @@ StructuredBuffer<int> srcBuffer: register(t1);      // Shader Resource View (SRV
 cbuffer cbuffer_U : register(b4) {
   uint4 U[2];
 };
-groupshared float4 weights_cache[32];
 
 struct tint_symbol_1 {
   uint3 lid : SV_GroupThreadID;
@@ -15,13 +14,14 @@ struct tint_symbol_1 {
   uint3 wid : SV_GroupID;
 };
 
-void main_inner(uint3 gid, uint3 wid, uint3 lid) {
-    const int index = gid.x;
-    dstBuffer[index] = srcBuffer[index] + index;
-}
-
 [numthreads(256, 1, 1)]
 void main(tint_symbol_1 tint_symbol) {
-  main_inner(tint_symbol.gid, tint_symbol.wid, tint_symbol.lid);
-  return;
+    uint3 gid = tint_symbol.gid;
+    uint3 wid = tint_symbol.wid;
+    uint3 lid = tint_symbol.lid;
+
+    const int index = gid.x;
+    dstBuffer[index] = srcBuffer[index] + index;
+ 
+    return;
 }
