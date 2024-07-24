@@ -1,7 +1,9 @@
 //RWTexture2D<float4> dst_tensor_image2d : register(u0);
 RWStructuredBuffer<int> dstBuffer : register(u0); // Unordered Access View (UAV)
 
-Texture2D<float4> src_tensor_image2d : register(t1);
+// Texture2D<float4> src_tensor_image2d : register(t1);
+StructuredBuffer<int> srcBuffer: register(t1);      // Shader Resource View (SRV)
+
 ByteAddressBuffer biases_buffer : register(t2);
 ByteAddressBuffer weights_buffer : register(t3);
 
@@ -18,7 +20,7 @@ struct tint_symbol_1 {
 
 void main_inner(uint3 gid, uint3 wid, uint3 lid) {
     const int index = gid.x;
-    dstBuffer[index] = index;
+    dstBuffer[index] = srcBuffer[index] + index;
 }
 
 [numthreads(1024, 1, 1)]

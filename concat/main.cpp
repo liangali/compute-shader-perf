@@ -219,7 +219,7 @@ int main()
     ThrowIfFailed(device->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32G32B32A32_FLOAT, kSharedDim, kSrcDim / 4, 1, 1, 1, 0, D3D12_RESOURCE_FLAG_NONE),
+        &CD3DX12_RESOURCE_DESC::Buffer(bufSizeInByte, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, 0),
         D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&srcTensor)));
@@ -255,10 +255,13 @@ int main()
     CD3DX12_CPU_DESCRIPTOR_HANDLE srcTensorSrvHandle(dstTensorUavHandle.Offset(cbvSrvUavHandleOffset));
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-        srvDesc.Texture2D.MipLevels = 1;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements = elemCount;
+        srvDesc.Buffer.StructureByteStride = (UINT)sizeof(int);
+        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
         device->CreateShaderResourceView(srcTensor.Get(), &srvDesc, srcTensorSrvHandle);
     }
 
