@@ -4,9 +4,6 @@ RWStructuredBuffer<int> dstBuffer : register(u0); // Unordered Access View (UAV)
 // Texture2D<float4> src_tensor_image2d : register(t1);
 StructuredBuffer<int> srcBuffer: register(t1);      // Shader Resource View (SRV)
 
-ByteAddressBuffer biases_buffer : register(t2);
-ByteAddressBuffer weights_buffer : register(t3);
-
 cbuffer cbuffer_U : register(b4) {
   uint4 U[2];
 };
@@ -23,7 +20,7 @@ void main_inner(uint3 gid, uint3 wid, uint3 lid) {
     dstBuffer[index] = srcBuffer[index] + index;
 }
 
-[numthreads(1024, 1, 1)]
+[numthreads(256, 1, 1)]
 void main(tint_symbol_1 tint_symbol) {
   main_inner(tint_symbol.gid, tint_symbol.wid, tint_symbol.lid);
   return;

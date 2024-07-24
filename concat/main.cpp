@@ -96,16 +96,11 @@ int main()
         }
     }
 
-    constexpr uint32_t trials = 10;
+    constexpr uint32_t trials = 100;
     constexpr uint32_t dispatches = 10;
 
-    constexpr uint32_t elemCount = 1024 * 1024;
+    constexpr uint32_t elemCount = 32*250*250;
     constexpr uint32_t bufSizeInByte = elemCount * sizeof(uint32_t);
-
-    // Tests 2D convolution 1x1x128x12288 -> 1x1x128x1536
-    constexpr uint32_t kSharedDim = 128;  // number of floats
-    constexpr uint32_t kSrcDim = 1024;   // number of floats
-    constexpr uint32_t kDstDim = 128;    // number of floats
 
     D3D12_DESCRIPTOR_RANGE1 rootDescriptorRanges[3] = {};
     {
@@ -195,26 +190,6 @@ int main()
         IID_PPV_ARGS(&uniformBuffer))
     );
 
-    ComPtr<ID3D12Resource> biasTensorBuffer;
-    ThrowIfFailed(device->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Buffer(kDstDim * sizeof(float), D3D12_RESOURCE_FLAG_NONE),
-        D3D12_RESOURCE_STATE_COMMON,
-        nullptr,
-        IID_PPV_ARGS(&biasTensorBuffer))
-    );
-
-    ComPtr<ID3D12Resource> weightsTensorBuffer;
-    ThrowIfFailed(device->CreateCommittedResource(
-        &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
-        D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Buffer(kDstDim * kSrcDim * sizeof(float), D3D12_RESOURCE_FLAG_NONE),
-        D3D12_RESOURCE_STATE_COMMON,
-        nullptr,
-        IID_PPV_ARGS(&weightsTensorBuffer))
-    );
-
     ComPtr<ID3D12Resource> srcTensor;
     ThrowIfFailed(device->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
@@ -265,33 +240,7 @@ int main()
         device->CreateShaderResourceView(srcTensor.Get(), &srvDesc, srcTensorSrvHandle);
     }
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE biasBufferHandle(srcTensorSrvHandle.Offset(cbvSrvUavHandleOffset));
-    {
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = static_cast<uint32_t>(biasTensorBuffer->GetDesc().Width / sizeof(float));
-        srvDesc.Buffer.StructureByteStride = 0;
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-        device->CreateShaderResourceView(biasTensorBuffer.Get(), &srvDesc, biasBufferHandle);
-    }
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE weightsTensorBufferHandle(biasBufferHandle.Offset(cbvSrvUavHandleOffset));
-    {
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        srvDesc.Format = DXGI_FORMAT_R32_TYPELESS;
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = static_cast<uint32_t>(weightsTensorBuffer->GetDesc().Width / sizeof(float));
-        srvDesc.Buffer.StructureByteStride = 0;
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
-        device->CreateShaderResourceView(weightsTensorBuffer.Get(), &srvDesc, weightsTensorBufferHandle);
-    }
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE uniformBufferHandle(weightsTensorBufferHandle.Offset(cbvSrvUavHandleOffset));
+    CD3DX12_CPU_DESCRIPTOR_HANDLE uniformBufferHandle(srcTensorSrvHandle.Offset(cbvSrvUavHandleOffset));
     {
         D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
         cbvDesc.BufferLocation = uniformBuffer->GetGPUVirtualAddress();
@@ -340,9 +289,9 @@ int main()
     uploadBuffer->Map(0, nullptr, &mapped);
     uint32_t* uniformData = static_cast<uint32_t*>(mapped);
     uniformData[0] = 1;
-    uniformData[1] = kDstDim / 4;
-    uniformData[2] = kSrcDim / 4;
-    uniformData[3] = kSharedDim;
+    uniformData[1] = elemCount;
+    uniformData[2] = elemCount;
+    uniformData[3] = elemCount;
     uniformData[4] = 1;
     uniformData[5] = 0;
     uniformData[6] = 0;
@@ -368,7 +317,7 @@ int main()
 
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2);
         for (uint32_t d = 0; d < dispatches; ++d) {
-            commandList->Dispatch(elemCount/1024, 1, 1);
+            commandList->Dispatch(elemCount/256, 1, 1);
             commandList->ResourceBarrier(1, &barrierDesc);
         }
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2 + 1);
