@@ -1,4 +1,5 @@
-RWTexture2D<float4> dst_tensor_image2d : register(u0);
+//RWTexture2D<float4> dst_tensor_image2d : register(u0);
+RWStructuredBuffer<int> dstBuffer : register(u0); // Unordered Access View (UAV)
 
 Texture2D<float4> src_tensor_image2d : register(t1);
 ByteAddressBuffer biases_buffer : register(t2);
@@ -16,27 +17,11 @@ struct tint_symbol_1 {
 };
 
 void main_inner(uint3 gid, uint3 wid, uint3 lid) {
-  int DST_X = int(gid.x) % asint(U[0].w);
-  int DST_Y = (int(gid.x) / asint(U[0].w)) % asint(U[1].x);
-  int DST_S = int(wid.y);
-  DST_S = (DST_S * 4);
-  if ((DST_S >= asint(U[0].y))) {
-    return;
-  }
-  float4 s0 = (0.0f).xxxx;
-  float4 s1 = (0.1f).xxxx;
-  float4 s2 = (0.2f).xxxx;
-  float4 s3 = (0.3f).xxxx;
-  uint filters_offset = uint(((DST_S * 4) * asint(U[0].z)));
-  int s = 0;
-
-  dst_tensor_image2d[int2((DST_X + 0), (((DST_Y + 0) * asint(U[0].y)) + (DST_S + 0)))] = s0;
-  dst_tensor_image2d[int2((DST_X + 0), (((DST_Y + 0) * asint(U[0].y)) + (DST_S + 1)))] = s1;
-  dst_tensor_image2d[int2((DST_X + 0), (((DST_Y + 0) * asint(U[0].y)) + (DST_S + 2)))] = s2;
-  dst_tensor_image2d[int2((DST_X + 0), (((DST_Y + 0) * asint(U[0].y)) + (DST_S + 3)))] = s3;
+    const int index = gid.x;
+    dstBuffer[index] = index;
 }
 
-[numthreads(64, 1, 1)]
+[numthreads(1024, 1, 1)]
 void main(tint_symbol_1 tint_symbol) {
   main_inner(tint_symbol.gid, tint_symbol.wid, tint_symbol.lid);
   return;

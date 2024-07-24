@@ -96,13 +96,16 @@ int main()
         }
     }
 
-    constexpr uint32_t trials = 1;
+    constexpr uint32_t trials = 10;
     constexpr uint32_t dispatches = 10;
+
+    constexpr uint32_t elemCount = 1024 * 1024;
+    constexpr uint32_t bufSizeInByte = elemCount * sizeof(uint32_t);
 
     // Tests 2D convolution 1x1x128x12288 -> 1x1x128x1536
     constexpr uint32_t kSharedDim = 128;  // number of floats
-    constexpr uint32_t kSrcDim = 12288;   // number of floats
-    constexpr uint32_t kDstDim = 1536;    // number of floats
+    constexpr uint32_t kSrcDim = 1024;   // number of floats
+    constexpr uint32_t kDstDim = 128;    // number of floats
 
     D3D12_DESCRIPTOR_RANGE1 rootDescriptorRanges[3] = {};
     {
@@ -225,9 +228,7 @@ int main()
     ThrowIfFailed(device->CreateCommittedResource(
         &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT),
         D3D12_HEAP_FLAG_NONE,
-        &CD3DX12_RESOURCE_DESC::Tex2D(
-            DXGI_FORMAT_R32G32B32A32_FLOAT, kSharedDim, kDstDim / 4, 1, 1, 1, 0,
-            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
+        &CD3DX12_RESOURCE_DESC::Buffer(bufSizeInByte, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, 0),
         D3D12_RESOURCE_STATE_COMMON,
         nullptr,
         IID_PPV_ARGS(&dstTensor)));
@@ -240,8 +241,13 @@ int main()
     ThrowIfFailed(device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&cbSrvUavHeap)));
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC dstUavDesc = {};
-    dstUavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    dstUavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+    dstUavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    dstUavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    dstUavDesc.Buffer.FirstElement = 0;
+    dstUavDesc.Buffer.NumElements = elemCount;
+    dstUavDesc.Buffer.StructureByteStride = (UINT)sizeof(int);
+    dstUavDesc.Buffer.CounterOffsetInBytes = 0;
+    dstUavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
     CD3DX12_CPU_DESCRIPTOR_HANDLE dstTensorUavHandle(cbSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
     device->CreateUnorderedAccessView(dstTensor.Get(), nullptr, &dstUavDesc, dstTensorUavHandle);
 
@@ -359,7 +365,7 @@ int main()
 
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2);
         for (uint32_t d = 0; d < dispatches; ++d) {
-            commandList->Dispatch(kSharedDim / 64, kDstDim / 4 / 4, 1);
+            commandList->Dispatch(elemCount/1024, 1, 1);
             commandList->ResourceBarrier(1, &barrierDesc);
         }
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2 + 1);
