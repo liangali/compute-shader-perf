@@ -11,6 +11,13 @@
 
 using Microsoft::WRL::ComPtr;
 
+struct Constants
+{
+  int StartIndex;
+  int EndIndex;
+  int Stride;
+};
+
 inline std::string HrToString(HRESULT hr)
 {
     char s_str[64] = {};
@@ -72,14 +79,15 @@ void PrintAdapterInfo(IDXGIAdapter1* adapter) {
 
 int main(int argc, char** argv)
 {
-    uint32_t elemNumInMillion = 1;
+    uint32_t elemCount = 2;
     if (argc == 2)
-        elemNumInMillion = atoi(argv[1]);
+      elemCount = atoi(argv[1]);
 
-    uint32_t trials = 100;
-    uint32_t dispatches = 10;
-    uint32_t elemCount = elemNumInMillion * 1024 * 1024;
-    uint32_t bufSizeInByte = elemCount * sizeof(uint32_t);
+    elemCount = elemCount * 1000000;
+
+    uint32_t trials = 1000;
+    uint32_t dispatches = 1;
+    uint32_t bufSizeInByte = elemCount * sizeof(uint16_t);
     uint32_t threadGroupSizeX = 256;
 
     ComPtr<IDXGIFactory4> factory;
@@ -120,16 +128,16 @@ int main(int argc, char** argv)
     {
         D3D12_DESCRIPTOR_RANGE1 rootDescriptorRange = {};
         rootDescriptorRange.BaseShaderRegister = 1;
-        rootDescriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        rootDescriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
         rootDescriptorRange.RegisterSpace = 0;
-        rootDescriptorRange.NumDescriptors = 3;
+        rootDescriptorRange.NumDescriptors = 1;
         rootDescriptorRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
         rootDescriptorRange.Flags = D3D12_DESCRIPTOR_RANGE_FLAG_NONE;
         rootDescriptorRanges[1] = rootDescriptorRange;
     }
     {
         D3D12_DESCRIPTOR_RANGE1 rootDescriptorRange = {};
-        rootDescriptorRange.BaseShaderRegister = 4;
+        rootDescriptorRange.BaseShaderRegister = 0;
         rootDescriptorRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
         rootDescriptorRange.RegisterSpace = 0;
         rootDescriptorRange.NumDescriptors = 1;
@@ -219,36 +227,36 @@ int main(int argc, char** argv)
     cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     ThrowIfFailed(device->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(&cbSrvUavHeap)));
 
+    D3D12_UNORDERED_ACCESS_VIEW_DESC srcUavDesc = {};
+    srcUavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    srcUavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srcUavDesc.Buffer.FirstElement = 0;
+    srcUavDesc.Buffer.NumElements = elemCount;
+    srcUavDesc.Buffer.StructureByteStride = (UINT)sizeof(uint16_t);
+    srcUavDesc.Buffer.CounterOffsetInBytes = 0;
+    srcUavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+    CD3DX12_CPU_DESCRIPTOR_HANDLE srcTensorUavHandle(cbSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
+    device->CreateUnorderedAccessView(srcTensor.Get(), nullptr, &srcUavDesc, srcTensorUavHandle);
+
     D3D12_UNORDERED_ACCESS_VIEW_DESC dstUavDesc = {};
     dstUavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
     dstUavDesc.Format = DXGI_FORMAT_UNKNOWN;
     dstUavDesc.Buffer.FirstElement = 0;
     dstUavDesc.Buffer.NumElements = elemCount;
-    dstUavDesc.Buffer.StructureByteStride = (UINT)sizeof(int);
+    dstUavDesc.Buffer.StructureByteStride = (UINT)sizeof(uint16_t);
     dstUavDesc.Buffer.CounterOffsetInBytes = 0;
     dstUavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
-    CD3DX12_CPU_DESCRIPTOR_HANDLE dstTensorUavHandle(cbSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
-    device->CreateUnorderedAccessView(dstTensor.Get(), nullptr, &dstUavDesc, dstTensorUavHandle);
 
     uint32_t cbvSrvUavHandleOffset = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    CD3DX12_CPU_DESCRIPTOR_HANDLE srcTensorSrvHandle(dstTensorUavHandle.Offset(cbvSrvUavHandleOffset));
-    {
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.NumElements = elemCount;
-        srvDesc.Buffer.StructureByteStride = (UINT)sizeof(int);
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-        device->CreateShaderResourceView(srcTensor.Get(), &srvDesc, srcTensorSrvHandle);
-    }
+    CD3DX12_CPU_DESCRIPTOR_HANDLE dstTensorUavHandle(srcTensorUavHandle.Offset(cbvSrvUavHandleOffset));
+    device->CreateUnorderedAccessView(dstTensor.Get(), nullptr, &dstUavDesc, dstTensorUavHandle);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE uniformBufferHandle(srcTensorSrvHandle.Offset(cbvSrvUavHandleOffset));
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE uniformBufferHandle(dstTensorUavHandle.Offset(cbvSrvUavHandleOffset));
     {
         D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
         cbvDesc.BufferLocation = uniformBuffer->GetGPUVirtualAddress();
-        cbvDesc.SizeInBytes = 256;
+        cbvDesc.SizeInBytes = (sizeof(Constants) + 255) & ~255; // CB size is required to be 256-byte aligned.;
         device->CreateConstantBufferView(&cbvDesc, uniformBufferHandle);
     }
 
@@ -289,18 +297,36 @@ int main(int argc, char** argv)
         nullptr,
         IID_PPV_ARGS(&uploadBuffer)));
 
+    ComPtr<ID3D12Resource> uploadBuffer2;
+    ThrowIfFailed(device->CreateCommittedResource(
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD),
+      D3D12_HEAP_FLAG_NONE,
+      &CD3DX12_RESOURCE_DESC::Buffer(bufSizeInByte),
+      D3D12_RESOURCE_STATE_GENERIC_READ,
+      nullptr,
+      IID_PPV_ARGS(&uploadBuffer2)));
+
     void* mapped = nullptr;
     uploadBuffer->Map(0, nullptr, &mapped);
-    uint32_t* uniformData = static_cast<uint32_t*>(mapped);
-    uniformData[0] = 1;
-    uniformData[1] = elemCount;
-    uniformData[2] = elemCount;
-    uniformData[3] = elemCount;
-    uniformData[4] = 1;
-    uniformData[5] = 0;
-    uniformData[6] = 0;
-    uniformData[7] = 0;
+    Constants* uniformData = static_cast<Constants*>(mapped);
+    uniformData->StartIndex = 0;
+    uniformData->Stride = 1;
+    uniformData->EndIndex = elemCount;
     uploadBuffer->Unmap(0, nullptr);
+
+    uint16_t* inputData;
+    uploadBuffer2->Map(0, nullptr, reinterpret_cast<void**>(&inputData));
+    for (uint32_t i = 0; i < elemCount; ++i)
+    {
+      
+      if (i == elemCount - 1)
+        inputData[i] = 2;
+      else
+        inputData[i] = 1;
+    }
+    uploadBuffer2->Unmap(0, nullptr);
+
+    commandList->CopyResource(srcTensor.Get(), uploadBuffer2.Get());
 
     commandList->CopyResource(uniformBuffer.Get(), uploadBuffer.Get());
 
@@ -321,7 +347,7 @@ int main(int argc, char** argv)
 
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2);
         for (uint32_t d = 0; d < dispatches; ++d) {
-            commandList->Dispatch(elemCount/threadGroupSizeX, 1, 1);
+            commandList->Dispatch((elemCount + threadGroupSizeX - 1)/threadGroupSizeX, 1, 1);
             commandList->ResourceBarrier(1, &barrierDesc);
         }
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2 + 1);
@@ -373,9 +399,11 @@ int main(int argc, char** argv)
         }
         avg += duration / trials;
     }
+
     std::cout << "Min: " << min << " ms " << std::endl;
     std::cout << "Max: " << max << " ms " << std::endl;
     std::cout << "Avg: " << avg << " ms " << std::endl;
+
 
     return 0;
 }

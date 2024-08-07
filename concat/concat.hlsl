@@ -1,27 +1,58 @@
-//RWTexture2D<float4> dst_tensor_image2d : register(u0);
-RWStructuredBuffer<int> dstBuffer : register(u0); // Unordered Access View (UAV)
+// HLSL Compute Shader
 
-// Texture2D<float4> src_tensor_image2d : register(t1);
-StructuredBuffer<int> srcBuffer: register(t1);      // Shader Resource View (SRV)
+ 
 
-cbuffer cbuffer_U : register(b4) {
-  uint4 U[2];
-};
+// Define the constant buffer structure
 
-struct tint_symbol_1 {
-  uint3 lid : SV_GroupThreadID;
-  uint3 gid : SV_DispatchThreadID;
-  uint3 wid : SV_GroupID;
-};
+cbuffer Constants : register(b0)
+{
+
+    int StartIndex; // Corresponds to the value loaded at cbuffer index 6
+
+    int EndIndex; // Corresponds to the value loaded at cbuffer index 7
+
+    int Stride; // This is inferred as it's used to calculate the offset
+
+}
+
+ 
+
+// Define the UAV structures for reading and writing
+
+RWStructuredBuffer<min16uint> InputBuffer : register(u0);
+
+RWStructuredBuffer<min16uint> OutputBuffer : register(u1);
+
+ 
+
+// The main compute shader function
 
 [numthreads(256, 1, 1)]
-void main(tint_symbol_1 tint_symbol) {
-    uint3 gid = tint_symbol.gid;
-    uint3 wid = tint_symbol.wid;
-    uint3 lid = tint_symbol.lid;
 
-    const int index = gid.x;
-    dstBuffer[index] = srcBuffer[index] + index;
+void CSMain(uint3 threadID : SV_DispatchThreadID)
+{
+
+    // Calculate the global index based on the thread ID and stride
+
+    int globalIndex = StartIndex + threadID.x * Stride;
+
  
-    return;
+
+    // Bounds check to ensure we don't read/write out of bounds
+
+    if (globalIndex < EndIndex)
+    {
+
+        // Read from the input buffer
+
+        min16uint value = InputBuffer[globalIndex];
+
+ 
+
+        // Write to the output buffer
+
+        OutputBuffer[globalIndex] = value;
+
+    }
+
 }
