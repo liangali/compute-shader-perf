@@ -306,6 +306,15 @@ int main(int argc, char** argv)
       nullptr,
       IID_PPV_ARGS(&uploadBuffer2)));
 
+    ComPtr<ID3D12Resource> uploadBuffer3;
+    ThrowIfFailed(device->CreateCommittedResource(
+      &CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_READBACK),
+      D3D12_HEAP_FLAG_ALLOW_ALL_BUFFERS_AND_TEXTURES,
+      &CD3DX12_RESOURCE_DESC::Buffer(bufSizeInByte),
+      D3D12_RESOURCE_STATE_COPY_DEST,
+      nullptr,
+      IID_PPV_ARGS(&uploadBuffer3)));
+
     void* mapped = nullptr;
     uploadBuffer->Map(0, nullptr, &mapped);
     Constants* uniformData = static_cast<Constants*>(mapped);
@@ -322,7 +331,7 @@ int main(int argc, char** argv)
       if (i == elemCount - 1)
         inputData[i] = 2;
       else
-        inputData[i] = 1;
+        inputData[i] = i;
     }
     uploadBuffer2->Unmap(0, nullptr);
 
@@ -353,6 +362,10 @@ int main(int argc, char** argv)
         commandList->EndQuery(timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, i * 2 + 1);
     }
 
+    commandList->CopyResource(uploadBuffer3.Get(), dstTensor.Get());
+
+    ResourceBarrier(commandList.Get(), uploadBuffer3.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_COMMON);
+
     commandList->ResolveQueryData(
         timestampQueryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, 0, 2 * trials,
         resolveBuffer.Get(), 0);;
@@ -381,6 +394,15 @@ int main(int argc, char** argv)
 
     uint64_t timestampFrequency;
     ThrowIfFailed(queue->GetTimestampFrequency(&timestampFrequency));
+
+    uint16_t* inputData2;
+    uploadBuffer3->Map(0, nullptr, reinterpret_cast<void**>(&inputData2));
+    for (uint32_t i = 0; i < 100; ++i)
+    {
+      printf("data[%d] = %d\n", i, inputData2[i]);
+    }
+    printf("data[%d] = %d\n", elemCount - 1, inputData2[elemCount - 1]);
+    uploadBuffer3->Unmap(0, nullptr);
 
     void* resolvePtr;
     resolveBuffer->Map(0, nullptr, &resolvePtr);

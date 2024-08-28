@@ -19,11 +19,9 @@ cbuffer Constants : register(b0)
 
 // Define the UAV structures for reading and writing
 
-RWStructuredBuffer<min16uint> InputBuffer : register(u0);
+RWStructuredBuffer<float16_t> InputBuffer : register(u0);
 
-RWStructuredBuffer<min16uint> OutputBuffer : register(u1);
-
- 
+RWStructuredBuffer<float16_t> OutputBuffer : register(u1);
 
 // The main compute shader function
 
@@ -45,12 +43,10 @@ void CSMain(uint3 threadID : SV_DispatchThreadID)
 
         // Read from the input buffer
 
-        min16uint value = InputBuffer[globalIndex];
+        float16_t value = InputBuffer[globalIndex];
 
- 
-
+        //value = value | StartIndex;
         // Write to the output buffer
-
         OutputBuffer[globalIndex] = value;
 
     }
