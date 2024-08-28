@@ -83,7 +83,7 @@ int main(int argc, char** argv)
     if (argc == 2)
       elemCount = atoi(argv[1]);
 
-    elemCount = elemCount * 1000000;
+    elemCount = elemCount * 1024*1024;
 
     uint32_t trials = 1000;
     uint32_t dispatches = 1;
@@ -327,11 +327,7 @@ int main(int argc, char** argv)
     uploadBuffer2->Map(0, nullptr, reinterpret_cast<void**>(&inputData));
     for (uint32_t i = 0; i < elemCount; ++i)
     {
-      
-      if (i == elemCount - 1)
-        inputData[i] = 2;
-      else
-        inputData[i] = i;
+        inputData[i] = i%256;
     }
     uploadBuffer2->Unmap(0, nullptr);
 
@@ -397,11 +393,20 @@ int main(int argc, char** argv)
 
     uint16_t* inputData2;
     uploadBuffer3->Map(0, nullptr, reinterpret_cast<void**>(&inputData2));
-    for (uint32_t i = 0; i < 100; ++i)
-    {
-      printf("data[%d] = %d\n", i, inputData2[i]);
+    int mismatchCount = 0;
+    for (uint32_t i = 0; i < elemCount; ++i) {
+        if (i < 256) {
+            printf("%d, ", inputData2[i]);
+            if ((i + 1) % 16 == 0)
+                printf("\n");
+        }
+        if (inputData2[i] != (i % 256))
+            mismatchCount++;
     }
-    printf("data[%d] = %d\n", elemCount - 1, inputData2[elemCount - 1]);
+    if (mismatchCount == 0)
+        printf("######## output buffer 100%% matched ########\n");
+    else
+        printf("!!!!!!!! output mismatch mismatch count = %d, total count = %d\n", mismatchCount, elemCount);
     uploadBuffer3->Unmap(0, nullptr);
 
     void* resolvePtr;
