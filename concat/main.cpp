@@ -79,14 +79,25 @@ void PrintAdapterInfo(IDXGIAdapter1* adapter) {
 
 int main(int argc, char** argv)
 {
-    uint32_t elemCount = 2;
-    if (argc == 2)
-      elemCount = atoi(argv[1]);
+    uint32_t elemCount = 4;
+    uint32_t trials = 100;
+    uint32_t dispatches = 1;
+    char* shaderPath = "concat.cso";
+
+    if (argc == 2) {
+        elemCount = atoi(argv[1]);
+    }
+    else if (argc == 3) {
+        elemCount = atoi(argv[1]);
+        trials = atoi(argv[2]);
+    }
+    else if (argc == 4) {
+        elemCount = atoi(argv[1]);
+        trials = atoi(argv[2]);
+        shaderPath = argv[3];
+    }
 
     elemCount = elemCount * 1024*1024;
-
-    uint32_t trials = 1000;
-    uint32_t dispatches = 1;
     uint32_t bufSizeInByte = elemCount * sizeof(uint16_t);
     uint32_t threadGroupSizeX = 256;
 
@@ -167,16 +178,13 @@ int main(int argc, char** argv)
     ThrowIfFailed(device->CreateRootSignature(0, signatureBlob->GetBufferPointer(), signatureBlob->GetBufferSize(), IID_PPV_ARGS(&rootSignature)));
 
     std::vector<char> csBytes;
-    std::array<const char*, 3> possiblePaths = { "concat.cso", "..\\x64\\Debug\\concat.cso", "..\\x64\\Release\\concat.cso" };
-    for (const char* path : possiblePaths) {
-        std::ifstream csFile(path, std::fstream::binary);
-        if (csFile.fail()) {
-            continue;
-        }
-        csBytes = std::vector<char>((std::istreambuf_iterator<char>(csFile)), std::istreambuf_iterator<char>());
-        csFile.close();
-        break;
+    std::ifstream csFile(shaderPath, std::fstream::binary);
+    if (csFile.fail()) {
+        printf("ERROR: cannot open shader file %s\n", shaderPath);
+        exit(-1);
     }
+    csBytes = std::vector<char>((std::istreambuf_iterator<char>(csFile)), std::istreambuf_iterator<char>());
+    csFile.close();
 
     if (csBytes.empty()) {
         std::cout << "Failed to open concat.cso!" << std::endl;
