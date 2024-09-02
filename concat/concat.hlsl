@@ -22,7 +22,7 @@ void CSMain(uint3 threadID : SV_DispatchThreadID)
     {
         // Read from the input buffer
         uint16_t value = InputBuffer[globalIndex];
-        //value = value | StartIndex;
+        // value = value | StartIndex;
 
         // Write to the output buffer
         OutputBuffer[globalIndex] = value;
